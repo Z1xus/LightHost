@@ -69,6 +69,7 @@ IconMenu::IconMenu() : INDEX_EDIT(1000000), INDEX_BYPASS(2000000), INDEX_DELETE(
     deviceManager.initialise(256, 256, savedAudioState.get(), true);
     player.setProcessor(&graph);
     deviceManager.addAudioCallback(&player);
+	deviceManager.addChangeListener(this);
     // Plugins - all
     std::unique_ptr<XmlElement> savedPluginList(getAppProperties().getUserSettings()->getXmlValue("pluginList"));
     if (savedPluginList != nullptr)
@@ -87,7 +88,11 @@ IconMenu::IconMenu() : INDEX_EDIT(1000000), INDEX_BYPASS(2000000), INDEX_DELETE(
 
 IconMenu::~IconMenu()
 {
+	knownPluginList.removeChangeListener(this);
+	activePluginList.removeChangeListener(this);
+	deviceManager.removeChangeListener(this);
 	savePluginStates();
+	shutdownAudio();
 }
 
 void IconMenu::setIcon()
@@ -215,6 +220,34 @@ void IconMenu::changeListenerCallback(ChangeBroadcaster* changed)
             getAppProperties().saveIfNeeded();
         }
     }
+	else if (changed == &deviceManager)
+	{
+	    dumpDeviceInfo();
+	}
+}
+
+void IconMenu::dumpDeviceInfo()
+{
+	logger.logMessage ("--------------------------------------");
+	logger.logMessage ("Current audio device type: " + (deviceManager.getCurrentDeviceTypeObject() != nullptr
+													? deviceManager.getCurrentDeviceTypeObject()->getTypeName()
+													: "<none>"));
+
+	if (auto* device = deviceManager.getCurrentAudioDevice())
+	{
+		logger.logMessage ("Current audio device: "   + device->getName().quoted());
+		logger.logMessage ("Sample rate: "    + String (device->getCurrentSampleRate()) + " Hz");
+		logger.logMessage ("Block size: "     + String (device->getCurrentBufferSizeSamples()) + " samples");
+		logger.logMessage ("Bit depth: "      + String (device->getCurrentBitDepth()));
+		logger.logMessage ("Input channel names: "    + device->getInputChannelNames().joinIntoString (", "));
+		logger.logMessage ("Active input channels: "  + getListOfActiveBits (device->getActiveInputChannels()));
+		logger.logMessage ("Output channel names: "   + device->getOutputChannelNames().joinIntoString (", "));
+		logger.logMessage ("Active output channels: " + getListOfActiveBits (device->getActiveOutputChannels()));
+	}
+	else
+	{
+		logger.logMessage ("No audio device open");
+	}
 }
 
 #if JUCE_MAC
