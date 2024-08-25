@@ -228,25 +228,25 @@ void IconMenu::changeListenerCallback(ChangeBroadcaster* changed)
 
 void IconMenu::dumpDeviceInfo()
 {
-	logger.logMessage ("--------------------------------------");
-	logger.logMessage ("Current audio device type: " + (deviceManager.getCurrentDeviceTypeObject() != nullptr
+	logger->logMessage("--------------------------------------");
+	logger->logMessage("Current audio device type: " + (deviceManager.getCurrentDeviceTypeObject() != nullptr
 													? deviceManager.getCurrentDeviceTypeObject()->getTypeName()
 													: "<none>"));
 
 	if (auto* device = deviceManager.getCurrentAudioDevice())
 	{
-		logger.logMessage ("Current audio device: "   + device->getName().quoted());
-		logger.logMessage ("Sample rate: "    + String (device->getCurrentSampleRate()) + " Hz");
-		logger.logMessage ("Block size: "     + String (device->getCurrentBufferSizeSamples()) + " samples");
-		logger.logMessage ("Bit depth: "      + String (device->getCurrentBitDepth()));
-		logger.logMessage ("Input channel names: "    + device->getInputChannelNames().joinIntoString (", "));
-		logger.logMessage ("Active input channels: "  + getListOfActiveBits (device->getActiveInputChannels()));
-		logger.logMessage ("Output channel names: "   + device->getOutputChannelNames().joinIntoString (", "));
-		logger.logMessage ("Active output channels: " + getListOfActiveBits (device->getActiveOutputChannels()));
+		logger->logMessage("Current audio device: "   + device->getName().quoted());
+		logger->logMessage("Sample rate: "    + String (device->getCurrentSampleRate()) + " Hz");
+		logger->logMessage("Block size: "     + String (device->getCurrentBufferSizeSamples()) + " samples");
+		logger->logMessage("Bit depth: "      + String (device->getCurrentBitDepth()));
+		logger->logMessage("Input channel names: "    + device->getInputChannelNames().joinIntoString (", "));
+		// logger->logMessage("Active input channels: "  + getListOfActiveBits (device->getActiveInputChannels()));
+		logger->logMessage("Output channel names: "   + device->getOutputChannelNames().joinIntoString (", "));
+		// logger->logMessage("Active output channels: " + getListOfActiveBits (device->getActiveOutputChannels()));
 	}
 	else
 	{
-		logger.logMessage ("No audio device open");
+		logger->logMessage("No audio device open");
 	}
 }
 

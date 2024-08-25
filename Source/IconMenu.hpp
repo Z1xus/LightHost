@@ -36,8 +36,9 @@ private:
 	void removePluginsLackingInputOutput();
 	std::vector<PluginDescription> getTimeSortedList();
 	void setIcon();
-    
-    std::unique_ptr<FileLogger> logger = FileLogger::createDefaultAppLogger("", "app.log", "LightHost logfile");
+    void dumpDeviceInfo();
+
+    FileLogger* logger = FileLogger::createDefaultAppLogger("", "app.log", "LightHost logfile");
     AudioDeviceManager deviceManager;
     AudioPluginFormatManager formatManager;
     KnownPluginList knownPluginList;
