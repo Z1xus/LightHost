@@ -222,8 +222,11 @@ void IconMenu::changeListenerCallback(ChangeBroadcaster* changed)
 	else if (changed == &deviceManager)
 	{
 		// JUCE handles output device changes, but fails to do the same for input devices, e.g. when mic gets reconnected
-		deviceManager.closeAudioDevice();
-		deviceManager.restartLastAudioDevice();
+		if (auto state = deviceManager.createStateXml())
+		{
+			deviceManager.initialise(256, 256, state.get(), true);
+		}
+
 		dumpDeviceInfo();
 	}
 }
