@@ -92,7 +92,6 @@ IconMenu::~IconMenu()
 	activePluginList.removeChangeListener(this);
 	deviceManager.removeChangeListener(this);
 	savePluginStates();
-	shutdownAudio();
 }
 
 void IconMenu::setIcon()
