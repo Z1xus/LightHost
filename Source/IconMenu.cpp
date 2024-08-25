@@ -66,7 +66,7 @@ IconMenu::IconMenu() : INDEX_EDIT(1000000), INDEX_BYPASS(2000000), INDEX_DELETE(
     formatManager.addDefaultFormats();
     // Audio device
     std::unique_ptr<XmlElement> savedAudioState (getAppProperties().getUserSettings()->getXmlValue("audioDeviceState"));
-    deviceManager.initialise(256, 256, savedAudioState.get(), false);
+    deviceManager.initialise(256, 256, savedAudioState.get(), true);
     player.setProcessor(&graph);
     deviceManager.addAudioCallback(&player);
 	deviceManager.addChangeListener(this);
@@ -221,9 +221,8 @@ void IconMenu::changeListenerCallback(ChangeBroadcaster* changed)
     }
 	else if (changed == &deviceManager)
 	{
-		// deviceManager.removeAudioCallback(&player);
-		// deviceManager.addAudioCallback(&player);
-		// deviceManager.restartLastAudioDevice
+		deviceManager.removeAudioCallback(&player);
+		deviceManager.addAudioCallback(&player);
 	    dumpDeviceInfo();
 	}
 }
@@ -236,12 +235,8 @@ void IconMenu::dumpDeviceInfo()
 													: "<none>"));
 
     auto setup = deviceManager.getAudioDeviceSetup();
-	logger->logMessage("inputDeviceName: " + setup.inputDeviceName.quoted());
-	logger->logMessage("outputDeviceName: " + setup.outputDeviceName.quoted());
-	logger->logMessage("useDefaultInputChannels: " + setup.useDefaultInputChannels);
-    logger->logMessage("useDefaultOutputChannels: " + setup.useDefaultOutputChannels);
-	logger->logMessage("bufferSize: " + setup.bufferSize);
-	logger->logMessage("sampleRate: " + String(setup.sampleRate));
+	logger->logMessage("Current input device name: " + setup.inputDeviceName.quoted());
+	logger->logMessage("Current output device name: " + setup.outputDeviceName.quoted());
 }
 
 #if JUCE_MAC
