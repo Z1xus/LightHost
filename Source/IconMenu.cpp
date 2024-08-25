@@ -66,7 +66,7 @@ IconMenu::IconMenu() : INDEX_EDIT(1000000), INDEX_BYPASS(2000000), INDEX_DELETE(
     formatManager.addDefaultFormats();
     // Audio device
     std::unique_ptr<XmlElement> savedAudioState (getAppProperties().getUserSettings()->getXmlValue("audioDeviceState"));
-    deviceManager.initialise(256, 256, savedAudioState.get(), true);
+    deviceManager.initialise(256, 256, savedAudioState.get(), false);
     player.setProcessor(&graph);
     deviceManager.addAudioCallback(&player);
 	deviceManager.addChangeListener(this);
@@ -221,6 +221,9 @@ void IconMenu::changeListenerCallback(ChangeBroadcaster* changed)
     }
 	else if (changed == &deviceManager)
 	{
+		// deviceManager.removeAudioCallback(&player);
+		// deviceManager.addAudioCallback(&player);
+		// deviceManager.restartLastAudioDevice
 	    dumpDeviceInfo();
 	}
 }
@@ -232,21 +235,13 @@ void IconMenu::dumpDeviceInfo()
 													? deviceManager.getCurrentDeviceTypeObject()->getTypeName()
 													: "<none>"));
 
-	if (auto* device = deviceManager.getCurrentAudioDevice())
-	{
-		logger->logMessage("Current audio device: "   + device->getName().quoted());
-		logger->logMessage("Sample rate: "    + String (device->getCurrentSampleRate()) + " Hz");
-		logger->logMessage("Block size: "     + String (device->getCurrentBufferSizeSamples()) + " samples");
-		logger->logMessage("Bit depth: "      + String (device->getCurrentBitDepth()));
-		logger->logMessage("Input channel names: "    + device->getInputChannelNames().joinIntoString (", "));
-		// logger->logMessage("Active input channels: "  + getListOfActiveBits (device->getActiveInputChannels()));
-		logger->logMessage("Output channel names: "   + device->getOutputChannelNames().joinIntoString (", "));
-		// logger->logMessage("Active output channels: " + getListOfActiveBits (device->getActiveOutputChannels()));
-	}
-	else
-	{
-		logger->logMessage("No audio device open");
-	}
+    auto setup = deviceManager.getAudioDeviceSetup();
+	logger->logMessage("inputDeviceName: " + setup.inputDeviceName.quoted());
+	logger->logMessage("outputDeviceName: " + setup.outputDeviceName.quoted());
+	logger->logMessage("useDefaultInputChannels: " + setup.useDefaultInputChannels);
+    logger->logMessage("useDefaultOutputChannels: " + setup.useDefaultOutputChannels);
+	logger->logMessage("bufferSize: " + setup.bufferSize);
+	logger->logMessage("sampleRate: " + String(setup.sampleRate));
 }
 
 #if JUCE_MAC

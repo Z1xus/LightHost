@@ -38,7 +38,7 @@ private:
 	void setIcon();
     void dumpDeviceInfo();
 
-    FileLogger* logger = FileLogger::createDefaultAppLogger("", "app.log", "LightHost logfile");
+    FileLogger* logger = FileLogger::createDefaultAppLogger("Light Host", "app.log", "LightHost logfile");
     AudioDeviceManager deviceManager;
     AudioPluginFormatManager formatManager;
     KnownPluginList knownPluginList;
