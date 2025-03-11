@@ -65,18 +65,18 @@ public:
         owner.addListener (this);
     }
 
-    ~ProcessorProgramPropertyComp()
+    ~ProcessorProgramPropertyComp() override
     {
         owner.removeListener (this);
     }
 
-    void refresh() { }
+    void refresh() override { }
     virtual void audioProcessorChanged (AudioProcessor*, const ChangeDetails&) override { }
     virtual void audioProcessorParameterChanged(AudioProcessor*, int, float) override { }
 
 private:
     AudioProcessor& owner;
-    const int index;
+    [[maybe_unused]] const int index;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ProcessorProgramPropertyComp)
 };
@@ -155,7 +155,7 @@ PluginWindow* PluginWindow::getWindowFor (AudioProcessorGraph::Node* const node,
     if (ui == nullptr)
     {
         if (type == Generic || type == Parameters)
-            ui = new GenericAudioProcessorEditor (processor);
+            ui = new GenericAudioProcessorEditor (*processor);
         else if (type == Programs)
             ui = new ProgramAudioProcessorEditor (processor);
     }

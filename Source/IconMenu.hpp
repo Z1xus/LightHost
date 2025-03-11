@@ -50,7 +50,6 @@ private:
     AudioProcessorGraph::Node *inputNode;
     AudioProcessorGraph::Node *outputNode;
 	#if JUCE_WINDOWS
-	int x, y;
 	#endif
 
 	class PluginListWindow;

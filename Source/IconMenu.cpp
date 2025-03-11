@@ -152,29 +152,42 @@ void IconMenu::loadActivePlugins()
         std::unique_ptr<AudioPluginInstance> instance = formatManager.createPluginInstance(plugin, graph.getSampleRate(), graph.getBlockSize(), errorMessage);
         
         if (instance == nullptr) {
+            DBG("Failed to create plugin instance: " + plugin.name + " - " + errorMessage);
             continue;
         }
         
 		String pluginUid = getKey("state", plugin);
         String savedPluginState = getAppProperties().getUserSettings()->getValue(pluginUid);
         MemoryBlock savedPluginBinary;
-        savedPluginBinary.fromBase64Encoding(savedPluginState);
-        instance->setStateInformation(savedPluginBinary.getData(), savedPluginBinary.getSize());
-        graph.addNode(std::move(instance), AudioProcessorGraph::NodeID(i)); // TODO https://stackoverflow.com/a/17473958
+        
+        if (savedPluginState.isNotEmpty()) {
+            if (savedPluginBinary.fromBase64Encoding(savedPluginState)) {
+                if (savedPluginBinary.getSize() > 0) {
+                    try {
+                        instance->setStateInformation(savedPluginBinary.getData(), static_cast<int>(savedPluginBinary.getSize()));
+                    }
+                    catch (const std::exception& e) {
+                        DBG("Error restoring plugin state: " + String(e.what()));
+                    }
+                }
+            }
+        }
+        
+        graph.addNode(std::move(instance), AudioProcessorGraph::NodeID(static_cast<uint32>(i)));
 		String key = getKey("bypass", plugin);
 		bool bypass = getAppProperties().getUserSettings()->getBoolValue(key, false);
         // Input to plugin
         if ((!hasInputConnected) && (!bypass))
         {
-            graph.addConnection({ { AudioProcessorGraph::NodeID(INPUT), CHANNEL_ONE }, { AudioProcessorGraph::NodeID(i), CHANNEL_ONE } });
-            graph.addConnection({ { AudioProcessorGraph::NodeID(INPUT), CHANNEL_TWO }, { AudioProcessorGraph::NodeID(i), CHANNEL_TWO } });
+            graph.addConnection({ { AudioProcessorGraph::NodeID(INPUT), CHANNEL_ONE }, { AudioProcessorGraph::NodeID(static_cast<uint32>(i)), CHANNEL_ONE } });
+            graph.addConnection({ { AudioProcessorGraph::NodeID(INPUT), CHANNEL_TWO }, { AudioProcessorGraph::NodeID(static_cast<uint32>(i)), CHANNEL_TWO } });
 			hasInputConnected = true;
         }
         // Connect previous plugin to current
         else if ((!bypass))
         {
-            graph.addConnection({ { AudioProcessorGraph::NodeID(lastId), CHANNEL_ONE }, { AudioProcessorGraph::NodeID(i), CHANNEL_ONE } });
-            graph.addConnection({ { AudioProcessorGraph::NodeID(lastId), CHANNEL_TWO }, { AudioProcessorGraph::NodeID(i), CHANNEL_TWO } });
+            graph.addConnection({ { AudioProcessorGraph::NodeID(static_cast<uint32>(lastId)), CHANNEL_ONE }, { AudioProcessorGraph::NodeID(static_cast<uint32>(i)), CHANNEL_ONE } });
+            graph.addConnection({ { AudioProcessorGraph::NodeID(static_cast<uint32>(lastId)), CHANNEL_TWO }, { AudioProcessorGraph::NodeID(static_cast<uint32>(i)), CHANNEL_TWO } });
         }
 		if (!bypass)
 		    lastId = i;
@@ -182,8 +195,8 @@ void IconMenu::loadActivePlugins()
 	if (lastId > 0)
 	{
 		// Last active plugin to output
-		graph.addConnection({ { AudioProcessorGraph::NodeID(lastId), CHANNEL_ONE }, { AudioProcessorGraph::NodeID(OUTPUT), CHANNEL_ONE } });
-		graph.addConnection({ { AudioProcessorGraph::NodeID(lastId), CHANNEL_TWO }, { AudioProcessorGraph::NodeID(OUTPUT), CHANNEL_TWO } });
+		graph.addConnection({ { AudioProcessorGraph::NodeID(static_cast<uint32>(lastId)), CHANNEL_ONE }, { AudioProcessorGraph::NodeID(OUTPUT), CHANNEL_ONE } });
+		graph.addConnection({ { AudioProcessorGraph::NodeID(static_cast<uint32>(lastId)), CHANNEL_TWO }, { AudioProcessorGraph::NodeID(OUTPUT), CHANNEL_TWO } });
 	}
 }
 
@@ -196,7 +209,7 @@ PluginDescription IconMenu::getNextPluginOlderThanTime(int &time)
 	
 	for (int i = 0; i < activePluginList.getNumTypes(); i++)
 	{
-		PluginDescription plugin = *activePluginList.getType(i);
+		PluginDescription plugin = activePluginList.getTypes()[i];
 		String key = getKey("order", plugin);
 		String pluginTimeString = getAppProperties().getUserSettings()->getValue(key);
 		int pluginTime = atoi(pluginTimeString.toStdString().c_str());
@@ -210,7 +223,7 @@ PluginDescription IconMenu::getNextPluginOlderThanTime(int &time)
 	}
 	
 	if (!foundValidPlugin && activePluginList.getNumTypes() > 0) {
-		closest = *activePluginList.getType(0);
+		closest = activePluginList.getTypes()[0];
 		time = INT_MAX;
 	}
 	
@@ -286,7 +299,10 @@ void IconMenu::timerCallback()
         menu.addSeparator();
 		menu.addSectionHeader("Avaliable Plugins");
         // All plugins
-        knownPluginList.addToMenu(menu, pluginSortMethod);
+        for (const auto& plugin : knownPluginList.getTypes())
+        {
+            menu.addItem(10000 + plugin.uniqueId, plugin.name);
+        }
     }
     else
     {
@@ -382,37 +398,46 @@ void IconMenu::menuInvocationCallback(int id, IconMenu* im)
 			im->loadActivePlugins();
         }
         // Add plugin
-        else if (im->knownPluginList.getIndexChosenByMenu(id) > -1)
+        else if (id >= 10000)
         {
-			PluginDescription plugin = *im->knownPluginList.getType(im->knownPluginList.getIndexChosenByMenu(id));
-			String key = getKey("order", plugin);
-			int t = time(0);
-			getAppProperties().getUserSettings()->setValue(key, t);
-			getAppProperties().saveIfNeeded();
-            im->activePluginList.addType(plugin);
+            for (const auto& plugin : im->knownPluginList.getTypes())
+            {
+                if (id == 10000 + plugin.uniqueId)
+                {
+                    String key = getKey("order", plugin);
+                    time_t t = time(nullptr);
+                    getAppProperties().getUserSettings()->setValue(key, static_cast<int>(t));
+                    getAppProperties().saveIfNeeded();
+                    im->activePluginList.addType(plugin);
 
-			im->savePluginStates();
-			im->loadActivePlugins();
+                    im->savePluginStates();
+                    im->loadActivePlugins();
+                    break;
+                }
+            }
         }
 		// Bypass plugin
 		else if (id >= im->INDEX_BYPASS && id < im->INDEX_BYPASS + 1000000)
 		{
 			int index = id - im->INDEX_BYPASS;
 			std::vector<PluginDescription> timeSorted = im->getTimeSortedList();
-			String key = getKey("bypass", timeSorted[index]);
+			if (index >= 0 && static_cast<size_t>(index) < timeSorted.size())
+			{
+				String key = getKey("bypass", timeSorted[index]);
 
-			// Set bypass flag
-			bool bypassed = getAppProperties().getUserSettings()->getBoolValue(key);
-			getAppProperties().getUserSettings()->setValue(key, !bypassed);
-			getAppProperties().saveIfNeeded();
+				// Set bypass flag
+				bool bypassed = getAppProperties().getUserSettings()->getBoolValue(key);
+				getAppProperties().getUserSettings()->setValue(key, !bypassed);
+				getAppProperties().saveIfNeeded();
 
-			im->savePluginStates();
-			im->loadActivePlugins();
+				im->savePluginStates();
+				im->loadActivePlugins();
+			}
 		}
         // Show active plugin GUI
 		else if (id >= im->INDEX_EDIT && id < im->INDEX_EDIT + 1000000)
         {
-            if (const AudioProcessorGraph::Node::Ptr f = im->graph.getNodeForId(AudioProcessorGraph::NodeID(id - im->INDEX_EDIT + 1)))
+            if (const AudioProcessorGraph::Node::Ptr f = im->graph.getNodeForId(AudioProcessorGraph::NodeID(static_cast<uint32>(id - im->INDEX_EDIT + 1))))
                 if (PluginWindow* const w = PluginWindow::getWindowFor(f, PluginWindow::Normal))
                     w->toFront(true);
         }
@@ -421,33 +446,41 @@ void IconMenu::menuInvocationCallback(int id, IconMenu* im)
 		{
 			im->savePluginStates();
 			std::vector<PluginDescription> timeSorted = im->getTimeSortedList();
-			PluginDescription toMove = timeSorted[id - im->INDEX_MOVE_UP];
-			for (int i = 0; i < timeSorted.size(); i++)
+			int index = id - im->INDEX_MOVE_UP;
+			if (index >= 0 && static_cast<size_t>(index) < timeSorted.size())
 			{
-				bool move = getKey("move", toMove).equalsIgnoreCase(getKey("move", timeSorted[i]));
-				getAppProperties().getUserSettings()->setValue(getKey("order", timeSorted[i]), move ? i : i+1);
-				if (move)
-					getAppProperties().getUserSettings()->setValue(getKey("order", timeSorted[i-1]), i+1);
+				PluginDescription toMove = timeSorted[index];
+				for (size_t i = 0; i < timeSorted.size(); i++)
+				{
+					bool move = getKey("move", toMove).equalsIgnoreCase(getKey("move", timeSorted[i]));
+					getAppProperties().getUserSettings()->setValue(getKey("order", timeSorted[i]), move ? static_cast<int>(i) : static_cast<int>(i+1));
+					if (move && i > 0)
+						getAppProperties().getUserSettings()->setValue(getKey("order", timeSorted[i-1]), static_cast<int>(i+1));
+				}
+				im->loadActivePlugins();
 			}
-			im->loadActivePlugins();
 		}
 		// Move plugin down the list
 		else if (id >= im->INDEX_MOVE_DOWN && id < im->INDEX_MOVE_DOWN + 1000000)
 		{
 			im->savePluginStates();
 			std::vector<PluginDescription> timeSorted = im->getTimeSortedList();
-			PluginDescription toMove = timeSorted[id - im->INDEX_MOVE_DOWN];
-			for (int i = 0; i < timeSorted.size(); i++)
+			int index = id - im->INDEX_MOVE_DOWN;
+			if (index >= 0 && static_cast<size_t>(index) < timeSorted.size())
 			{
-				bool move = getKey("move", toMove).equalsIgnoreCase(getKey("move", timeSorted[i]));
-				getAppProperties().getUserSettings()->setValue(getKey("order", timeSorted[i]), move ? i+2 : i+1);
-				if (move)
+				PluginDescription toMove = timeSorted[index];
+				for (size_t i = 0; i < timeSorted.size(); i++)
 				{
-					getAppProperties().getUserSettings()->setValue(getKey("order", timeSorted[i + 1]), i + 1);
-					i++;
+					bool move = getKey("move", toMove).equalsIgnoreCase(getKey("move", timeSorted[i]));
+					getAppProperties().getUserSettings()->setValue(getKey("order", timeSorted[i]), move ? static_cast<int>(i+2) : static_cast<int>(i+1));
+					if (move)
+					{
+						getAppProperties().getUserSettings()->setValue(getKey("order", timeSorted[i + 1]), static_cast<int>(i + 1));
+						i++;
+					}
 				}
+				im->loadActivePlugins();
 			}
-			im->loadActivePlugins();
 		}
         // Update menu
         im->startTimer(50);
@@ -473,7 +506,7 @@ String IconMenu::getKey(String type, PluginDescription plugin)
 void IconMenu::deletePluginStates()
 {
 	std::vector<PluginDescription> list = getTimeSortedList();
-    for (int i = 0; i < activePluginList.getNumTypes(); i++)
+    for (size_t i = 0; i < list.size() && i < static_cast<size_t>(activePluginList.getNumTypes()); i++)
     {
 		String pluginUid = getKey("state", list[i]);
         getAppProperties().getUserSettings()->removeValue(pluginUid);
@@ -484,9 +517,9 @@ void IconMenu::deletePluginStates()
 void IconMenu::savePluginStates()
 {
 	std::vector<PluginDescription> list = getTimeSortedList();
-    for (int i = 0; i < activePluginList.getNumTypes(); i++)
+    for (size_t i = 0; i < list.size() && i < static_cast<size_t>(activePluginList.getNumTypes()); i++)
     {
-		AudioProcessorGraph::Node* node = graph.getNodeForId(AudioProcessorGraph::NodeID(i + 1));
+		AudioProcessorGraph::Node* node = graph.getNodeForId(AudioProcessorGraph::NodeID(static_cast<uint32>(i + 1)));
 		if (node == nullptr)
 			break;
         AudioProcessor& processor = *node->getProcessor();
@@ -500,7 +533,25 @@ void IconMenu::savePluginStates()
 
 void IconMenu::showAudioSettings()
 {
-    AudioDeviceSelectorComponent audioSettingsComp (deviceManager, 0, 256, 0, 256, false, false, true, false);
+    const int minInputChannels = 0;
+    const int maxInputChannels = 256;
+    const int minOutputChannels = 0;
+    const int maxOutputChannels = 256;
+    const bool showChannelsAsStereoPairs = true;
+    const bool hideAdvancedOptionsWithButton = false;
+    const bool showMidiInputOptions = true;
+    const bool showMidiOutputSelector = false;
+    
+    AudioDeviceSelectorComponent audioSettingsComp (
+        deviceManager, 
+        minInputChannels, maxInputChannels, 
+        minOutputChannels, maxOutputChannels, 
+        showChannelsAsStereoPairs,
+        hideAdvancedOptionsWithButton, 
+        showMidiInputOptions, 
+        showMidiOutputSelector
+    );
+    
     audioSettingsComp.setSize(500, 600);
     
     DialogWindow::LaunchOptions o;
@@ -529,6 +580,9 @@ void IconMenu::reloadPlugins()
 
 void IconMenu::removePluginsLackingInputOutput()
 {
+    if (knownPluginList.getNumTypes() == 0)
+        return;
+        
     Array<PluginDescription> pluginsToRemove;
     
     for (const auto& plugin : knownPluginList.getTypes())
@@ -537,6 +591,9 @@ void IconMenu::removePluginsLackingInputOutput()
             pluginsToRemove.add(plugin);
     }
     
+    if (pluginsToRemove.isEmpty())
+        return;
+        
     for (const auto& plugin : pluginsToRemove)
         knownPluginList.removeType(plugin);
 }
